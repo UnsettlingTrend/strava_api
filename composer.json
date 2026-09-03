@@ -1,0 +1,10 @@
+{
+    "name": "unsettlingtrend/strava_api",
+    "type": "drupal-module",
+    "description": "\"Route\" paragraph type that embeds Strava route maps (distance, elevation, polyline) via the Strava API.",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "drupal/core": "^11",
+        "drupal/paragraphs": "^1.18"
+    }
+}
