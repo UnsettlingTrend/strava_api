@@ -136,20 +136,23 @@ function strava_api_entity_presave(EntityInterface $entity): void {
 /**
  * Implements hook_ENTITY_TYPE_view() for paragraph.
  *
- * Adds "Navigate to Start" / "Navigate to End" buttons to a strava_route
- * paragraph's rendering, directly below its Distance field (field_distance
- * is weight -1, the route map is weight 0 — this renders at -0.5, between
- * them), Start first. Each is Google Maps' directions URL (not just a
- * dropped pin), so tapping it starts turn-by-turn navigation to that point
- * — opens the Google Maps app on mobile if installed, falls back to Maps
- * in the browser otherwise. Opens in a new tab so the race leg page stays
- * put.
+ * Adds "Navigate to Start" / "Navigate to End" / "View on Strava" buttons to
+ * a strava_route paragraph's rendering, directly below its Distance field
+ * (field_distance is weight -1, the route map is weight 0 — this renders at
+ * -0.5, between them). Navigate to Start/End each link to Google Maps'
+ * directions URL (not just a dropped pin), so tapping it starts turn-by-turn
+ * navigation to that point — opens the Google Maps app on mobile if
+ * installed, falls back to Maps in the browser otherwise. View on Strava
+ * links to the route's page on strava.com. All three open in a new tab so
+ * the race leg page stays put.
  *
- * Styled as MDC buttons, both identical (raised) — same markup pattern
- * (mdc-button__ripple + mdc-button__label spans as the link's #title,
- * since #title accepts a render array) as race.html.twig's own MDC
- * buttons, for visual consistency with the rest of the site rather than
- * inventing a one-off button style here.
+ * Styled as MDC buttons — same markup pattern (mdc-button__ripple +
+ * mdc-button__label spans as the link's #title, since #title accepts a
+ * render array) as race.html.twig's own MDC buttons, for visual consistency
+ * with the rest of the site rather than inventing a one-off button style
+ * here. Navigate to Start/End are raised (primary); View on Strava is
+ * outlined (lighter/secondary), matching race.html.twig's convention of
+ * outlining the non-primary action when a raised button is also present.
  */
 function strava_api_paragraph_view(array &$build, ParagraphInterface $entity, EntityViewDisplayInterface $display, string $view_mode): void {
   if ($entity->bundle() !== 'strava_route') {
@@ -158,8 +161,9 @@ function strava_api_paragraph_view(array &$build, ParagraphInterface $entity, En
 
   $start_url = _strava_api_google_maps_directions_url($entity, 'field_start_lat', 'field_start_lng');
   $end_url = _strava_api_google_maps_directions_url($entity, 'field_end_lat', 'field_end_lng');
+  $strava_url = _strava_api_route_view_url($entity);
 
-  if (!$start_url && !$end_url) {
+  if (!$start_url && !$end_url && !$strava_url) {
     return;
   }
 
@@ -175,12 +179,15 @@ function strava_api_paragraph_view(array &$build, ParagraphInterface $entity, En
   if ($end_url) {
     $build['strava_route_nav']['end'] = _strava_api_mdc_button_link($end_url, t('Navigate to End'));
   }
+  if ($strava_url) {
+    $build['strava_route_nav']['strava'] = _strava_api_mdc_button_link($strava_url, t('View on Strava'), outlined: TRUE);
+  }
 }
 
 /**
  * Builds a link render array styled as an MDC button.
  */
-function _strava_api_mdc_button_link(Url $url, TranslatableMarkup $title): array {
+function _strava_api_mdc_button_link(Url $url, TranslatableMarkup $title, bool $outlined = FALSE): array {
   return [
     '#type' => 'link',
     '#title' => [
@@ -198,11 +205,29 @@ function _strava_api_mdc_button_link(Url $url, TranslatableMarkup $title): array
     ],
     '#url' => $url,
     '#attributes' => [
-      'class' => ['mdc-button', 'mdc-button--raised', 'strava-route-nav__link'],
+      'class' => ['mdc-button', $outlined ? 'mdc-button--outlined' : 'mdc-button--raised', 'strava-route-nav__link'],
       'target' => '_blank',
       'rel' => 'noopener',
     ],
   ];
+}
+
+/**
+ * Returns a strava.com Url for a strava_route paragraph's route ID, or NULL.
+ *
+ * Accepts either a bare numeric ID (123456789) or a full Strava URL, as
+ * stored in field_strava_route_id.
+ */
+function _strava_api_route_view_url(ParagraphInterface $entity): ?Url {
+  if (!$entity->hasField('field_strava_route_id')) {
+    return NULL;
+  }
+  $raw = trim((string) ($entity->get('field_strava_route_id')->value ?? ''));
+  if ($raw === '') {
+    return NULL;
+  }
+  $uri = filter_var($raw, FILTER_VALIDATE_URL) ? $raw : 'https://www.strava.com/routes/' . $raw;
+  return Url::fromUri($uri);
 }
 
 /**
